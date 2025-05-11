@@ -506,15 +506,15 @@ class So100RobotConfig(ManipulatorRobotConfig):
     leader_arms: dict[str, MotorsBusConfig] = field(
         default_factory=lambda: {
             "main": FeetechMotorsBusConfig(
-                port="/dev/ttyACM1",
+                port="/dev/ttyACM0",
                 motors={
                     # name: (index, model)
                     "shoulder_pan": [1, "sts3215"],
                     "shoulder_lift": [2, "sts3215"],
-                    "elbow_flex": [4, "sts3215"],
-                    "wrist_flex": [5, "sts3215"],
-                    "wrist_roll": [6, "sts3215"],
-                    "gripper": [3, "sts3215"],
+                    "elbow_flex": [3, "sts3215"],
+                    "wrist_flex": [4, "sts3215"],
+                    "wrist_roll": [5, "sts3215"],
+                    "gripper": [6, "sts3215"],
                 },
             ),
         }
@@ -523,7 +523,7 @@ class So100RobotConfig(ManipulatorRobotConfig):
     follower_arms: dict[str, MotorsBusConfig] = field(
         default_factory=lambda: {
             "main": FeetechMotorsBusConfig(
-                port="/dev/ttyACM0",
+                port="/dev/ttyACM1",
                 motors={
                     # name: (index, model)
                     "shoulder_pan": [1, "sts3215"],
@@ -539,24 +539,24 @@ class So100RobotConfig(ManipulatorRobotConfig):
 
     cameras: dict[str, CameraConfig] = field(
         default_factory=lambda: {
-            "wrist": OpenCVCameraConfig(
-                camera_index=12,
-                fps=30,
-                width=640,
-                height=480,
-            ),
-            "right_stationary": OpenCVCameraConfig(
-                camera_index=0,
-                fps=30,
-                width=640,
-                height=480,
-            ),
-            "left_stationary": OpenCVCameraConfig(
+            # "wrist": OpenCVCameraConfig(
+            #     camera_index=12,
+            #     fps=30,
+            #     width=640,
+            #     height=480,
+            # ),
+            "stationary": OpenCVCameraConfig(
                 camera_index=8,
                 fps=30,
                 width=640,
                 height=480,
             ),
+            # "left_stationary": OpenCVCameraConfig(
+            #     camera_index=8,
+            #     fps=30,
+            #     width=640,
+            #     height=480,
+            # ),
         }
     )
 
