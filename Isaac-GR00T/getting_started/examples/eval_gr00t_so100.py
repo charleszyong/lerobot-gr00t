@@ -211,7 +211,7 @@ class Gr00tRobotInferenceClient:
             "video.left_stationary": np.zeros((1, self.img_size[0], self.img_size[1], 3), dtype=np.uint8),
             "state.single_arm": np.zeros((1, 5)),
             "state.gripper": np.zeros((1, 1)),
-            "annotation.human.action.task_description": [self.language_instruction],
+            "annotation.human.task_description": [self.language_instruction],
         }
         return self.policy.get_action(obs_dict)
 
