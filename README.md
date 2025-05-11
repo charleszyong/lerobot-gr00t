@@ -21,13 +21,13 @@ python lerobot/scripts/control_robot.py \
   --robot.type=so100 \
   --control.type=record \
   --control.fps=30 \
-  --control.single_task="Pick up the orange cube marked Y and place it in the brown box." \
-  --control.repo_id=${HF_USER}/so100_ycube_put_box \
+  --control.single_task="Pick up the orange cubes and place them in the brown box." \
+  --control.repo_id=${HF_USER}/so100_cubes_put_box \
   --control.tags='["so100","yc_demo"]' \
   --control.warmup_time_s=5 \
-  --control.episode_time_s=30 \
-  --control.reset_time_s=3 \
-  --control.num_episodes=30 \
+  --control.episode_time_s=25 \
+  --control.reset_time_s=5 \
+  --control.num_episodes=40 \
   --control.push_to_hub=true \
   --control.display_data=true
 ```
@@ -66,6 +66,25 @@ python lerobot/scripts/control_robot.py \
 
 ## GR00T Framework
 
+### Download Dataset
+
+```shell
+huggingface-cli download --repo-type dataset charleyong/so100_cubes_put_box \
+--local-dir ./demo_data/so100_cubes_put_box
+```
+
+### Finetune
+
+```shell 
+python scripts/gr00t_finetune.py \
+   --dataset-path ./demo_data/so100_ycube_put_box/ \
+   --num-gpus 1 \
+   --output-dir ./policy/so100-checkpoints  \
+   --max-steps 10000 \
+   --data-config so100 \
+   --video-backend torchvision_av
+```
+
 ### Open-loop Evaluation 
 
 ```shell
@@ -75,7 +94,8 @@ python scripts/eval_policy.py --plot \
    --data_config so100 \
   --dataset_path /home/charles/.cache/huggingface/lerobot/charleyong/so100_ycube_put_box/ \
    --video_backend torchvision_av \
-   --modality_keys single_arm gripper
+   --modality_keys single_arm gripper \
+   --steps 900
 ```
 
 ### Run a policy
