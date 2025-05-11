@@ -47,9 +47,7 @@ class SO100Robot:
         self.calibrate = calibrate
         self.enable_camera = enable_camera
         self.config.cameras = {
-            "left_stationary": OpenCVCameraConfig(12, 30, 640, 480, "bgr"),
-            "wrist": OpenCVCameraConfig(8, 30, 640, 480, "bgr"),
-            "right_stationary": OpenCVCameraConfig(0, 30, 640, 480, "bgr")
+            "stationary": OpenCVCameraConfig(12, 30, 640, 480, "bgr"),
         }
         self.config.leader_arms = {}
 
@@ -149,7 +147,7 @@ class SO100Robot:
         """Return a dict of RGB frames keyed by camera name."""
         obs = self.robot.capture_observation()
         imgs = {}
-        for cam in ("wrist", "right_stationary", "left_stationary"):
+        for cam in ("stationary"):
             bgr = obs[f"observation.images.{cam}"].data.numpy()
             imgs[cam] = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         return imgs
@@ -193,9 +191,7 @@ class Gr00tRobotInferenceClient:
 
     def get_action(self, imgs, state):
         obs_dict = {
-            "video.wrist":           imgs["wrist"][np.newaxis],
-            "video.right_stationary":imgs["right_stationary"][np.newaxis],
-            "video.left_stationary": imgs["left_stationary"][np.newaxis],
+            "video.stationary": imgs["stationary"][np.newaxis],
             "state.single_arm": state[:5][np.newaxis, :].astype(np.float64),
             "state.gripper": state[5:6][np.newaxis, :].astype(np.float64),
             "annotation.human.task_description": [self.language_instruction],
@@ -206,9 +202,7 @@ class Gr00tRobotInferenceClient:
 
     def sample_action(self):
         obs_dict = {
-            "video.wrist": np.zeros((1, self.img_size[0], self.img_size[1], 3), dtype=np.uint8),
-            "video.right_stationary": np.zeros((1, self.img_size[0], self.img_size[1], 3), dtype=np.uint8),
-            "video.left_stationary": np.zeros((1, self.img_size[0], self.img_size[1], 3), dtype=np.uint8),
+            "video.stationary": np.zeros((1, self.img_size[0], self.img_size[1], 3), dtype=np.uint8),
             "state.single_arm": np.zeros((1, 5)),
             "state.gripper": np.zeros((1, 1)),
             "annotation.human.task_description": [self.language_instruction],
