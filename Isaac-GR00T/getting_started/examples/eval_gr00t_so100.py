@@ -42,13 +42,15 @@ from tqdm import tqdm
 
 
 class SO100Robot:
-    def __init__(self, calibrate=False, enable_camera=False):
+    def __init__(self, calibrate=False, enable_camera=False, cam_idx=9):
         self.config = So100RobotConfig()
         self.calibrate = calibrate
         self.enable_camera = enable_camera
-        self.config.cameras = {
-            "stationary": OpenCVCameraConfig(12, 30, 640, 480, "bgr"),
-        }
+        self.cam_idx = cam_idx
+        if not enable_camera:
+            self.config.cameras = {}
+        else:
+            self.config.cameras = {"stationary": OpenCVCameraConfig(cam_idx, 30, 640, 480, "bgr")}
         self.config.leader_arms = {}
 
         # remove the .cache/calibration/so100 folder
@@ -97,10 +99,9 @@ class SO100Robot:
         print("robot present position:", self.motor_bus.read("Present_Position"))
         self.robot.is_connected = True
 
-        # self.camera = self.robot.cameras["wrist"]
-        for camera in self.robot.cameras.values():
-            camera.connect()
-
+        self.camera = self.robot.cameras["stationary"] if self.enable_camera else None
+        if self.camera is not None:
+            self.camera.connect()
         print("================> SO100 Robot is fully connected =================")
 
     def set_so100_robot_preset(self):
@@ -122,20 +123,19 @@ class SO100Robot:
 
     def move_to_initial_pose(self):
         current_state = self.robot.capture_observation()["observation.state"]
-        # print("current_state", current_state)
+        print("current_state", current_state)
         # print all keys of the observation
-        # print("observation keys:", self.robot.capture_observation().keys())
-        current_state = torch.tensor([7, 180, 120, 70, 85, 0.5])
+        print("observation keys:", self.robot.capture_observation().keys())
+        current_state = torch.tensor([-0.2637, 181.2305, 173.5840, 72.7734, -88.4180, 1])
         self.robot.send_action(current_state)
         time.sleep(2)
         print("-------------------------------- moving to initial pose")
 
-    # def go_home(self):
-    #     # [ 88.0664, 156.7090, 135.6152,  83.7598, -89.1211,  16.5107]
-    #     print("-------------------------------- moving to home pose")
-    #     home_state = torch.tensor([88.0664, 156.7090, 135.6152, 83.7598, -89.1211, 16.5107])
-    #     self.set_target_state(home_state)
-    #     time.sleep(2)
+    def go_home(self):
+        print("-------------------------------- moving to home pose")
+        home_state = torch.tensor([-0.2637, 181.2305, 173.5840, 72.7734, -88.4180, 1])
+        self.set_target_state(home_state)
+        time.sleep(2)
 
     def get_observation(self):
         return self.robot.capture_observation()
@@ -143,14 +143,11 @@ class SO100Robot:
     def get_current_state(self):
         return self.get_observation()["observation.state"].data.numpy()
 
-    def get_current_imgs(self):
-        """Return a dict of RGB frames keyed by camera name."""
-        obs = self.robot.capture_observation()
-        imgs = {}
-        for cam in ("stationary"):
-            bgr = obs[f"observation.images.{cam}"].data.numpy()
-            imgs[cam] = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-        return imgs
+    def get_current_img(self):
+        img = self.get_observation()["observation.images.stationary"].data.numpy()
+        # convert bgr to rgb
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        return img
 
     def set_target_state(self, target_state: torch.Tensor):
         self.robot.send_action(target_state)
@@ -189,9 +186,9 @@ class Gr00tRobotInferenceClient:
         self.img_size = (480, 640)
         self.policy = ExternalRobotInferenceClient(host=host, port=port)
 
-    def get_action(self, imgs, state):
+    def get_action(self, img, state):
         obs_dict = {
-            "video.stationary": imgs["stationary"][np.newaxis],
+            "video.stationary": img[np.newaxis, :, :, :],
             "state.single_arm": state[:5][np.newaxis, :].astype(np.float64),
             "state.gripper": state[5:6][np.newaxis, :].astype(np.float64),
             "annotation.human.task_description": [self.language_instruction],
@@ -205,7 +202,7 @@ class Gr00tRobotInferenceClient:
             "video.stationary": np.zeros((1, self.img_size[0], self.img_size[1], 3), dtype=np.uint8),
             "state.single_arm": np.zeros((1, 5)),
             "state.gripper": np.zeros((1, 1)),
-            "annotation.human.task_description": [self.language_instruction],
+            "annotation.human.action.task_description": [self.language_instruction],
         }
         return self.policy.get_action(obs_dict)
 
@@ -246,8 +243,9 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=5555)
     parser.add_argument("--action_horizon", type=int, default=12)
     parser.add_argument("--actions_to_execute", type=int, default=350)
+    parser.add_argument("--cam_idx", type=int, default=1)
     parser.add_argument(
-        "--lang_instruction", type=str, default="Pick up the orange cube marked Y and place it in the brown box."
+        "--lang_instruction", type=str, default="Pick up the fruits and place them on the plate."
     )
     parser.add_argument("--record_imgs", action="store_true")
     args = parser.parse_args()
@@ -261,48 +259,78 @@ if __name__ == "__main__":
         args.action_horizon
     )  # we will execute only some actions from the action_chunk of 16
     MODALITY_KEYS = ["single_arm", "gripper"]
+    if USE_POLICY:
+        client = Gr00tRobotInferenceClient(
+            host=args.host,
+            port=args.port,
+            language_instruction=args.lang_instruction,
+        )
 
-    client = Gr00tRobotInferenceClient(
-        host=args.host,
-        port=args.port,
-        language_instruction=args.lang_instruction,
-    )
+        if args.record_imgs:
+            # create a folder to save the images and delete all the images in the folder
+            os.makedirs("eval_images", exist_ok=True)
+            for file in os.listdir("eval_images"):
+                os.remove(os.path.join("eval_images", file))
 
-    if args.record_imgs:
-        # create a folder to save the images and delete all the images in the folder
-        os.makedirs("eval_images", exist_ok=True)
-        for file in os.listdir("eval_images"):
-            os.remove(os.path.join("eval_images", file))
+        robot = SO100Robot(calibrate=False, enable_camera=True, cam_idx=args.cam_idx)
+        image_count = 0
+        with robot.activate():
+            for i in tqdm(range(ACTIONS_TO_EXECUTE), desc="Executing actions"):
+                img = robot.get_current_img()
+                view_img(img)
+                state = robot.get_current_state()
+                action = client.get_action(img, state)
+                start_time = time.time()
+                for i in range(ACTION_HORIZON):
+                    concat_action = np.concatenate(
+                        [np.atleast_1d(action[f"action.{key}"][i]) for key in MODALITY_KEYS],
+                        axis=0,
+                    )
+                    assert concat_action.shape == (6,), concat_action.shape
+                    robot.set_target_state(torch.from_numpy(concat_action))
+                    time.sleep(0.02)
 
-    robot = SO100Robot(calibrate=False, enable_camera=True)
-    image_count = 0
-    with robot.activate():
-        for i in tqdm(range(ACTIONS_TO_EXECUTE), desc="Executing actions"):
-            imgs  = robot.get_current_imgs()
-            view_img(imgs["wrist"])
-            state = robot.get_current_state()
-            action = client.get_action(imgs, state)
-            start_time = time.time()
-            for i in range(ACTION_HORIZON):
-                concat_action = np.concatenate(
-                    [np.atleast_1d(action[f"action.{key}"][i]) for key in MODALITY_KEYS],
-                    axis=0,
-                )
-                assert concat_action.shape == (6,), concat_action.shape
-                robot.set_target_state(torch.from_numpy(concat_action))
-                time.sleep(0.02)
+                    # get the realtime image
+                    img = robot.get_current_img()
+                    view_img(img)
 
-                # get the realtime image
-                imgs = robot.get_current_imgs()
-                view_img(imgs["wrist"])
+                    if args.record_imgs:
+                        # resize the image to 320x240
+                        img = cv2.resize(cv2.cvtColor(img, cv2.COLOR_RGB2BGR), (320, 240))
+                        cv2.imwrite(f"eval_images/img_{image_count}.jpg", img)
+                        image_count += 1
 
-                if args.record_imgs:
-                    # resize the image to 320x240
-                    img = imgs["wrist"]
-                    img = cv2.resize(cv2.cvtColor(img, cv2.COLOR_RGB2BGR), (320, 240))
-                    cv2.imwrite(f"eval_images/img_{image_count}.jpg", img)
-                    image_count += 1
+                    # 0.05*16 = 0.8 seconds
+                    print("executing action", i, "time taken", time.time() - start_time)
+                print("Action chunk execution time taken", time.time() - start_time)
+    else:
+        # Test Dataset Source https://huggingface.co/datasets/youliangtan/so100_strawberry_grape
+        dataset = LeRobotDataset(
+            repo_id="",
+            root=args.dataset_path,
+        )
 
-                # 0.05*16 = 0.8 seconds
-                print("executing action", i, "time taken", time.time() - start_time)
-            print("Action chunk execution time taken", time.time() - start_time)
+        robot = SO100Robot(calibrate=False, enable_camera=True, cam_idx=args.cam_idx)
+
+        with robot.activate():
+            print("Run replay of the dataset")
+            actions = []
+            for i in tqdm(range(ACTIONS_TO_EXECUTE), desc="Loading actions"):
+                action = dataset[i]["action"]
+                img = dataset[i]["observation.images.stationary"].data.numpy()
+                # original shape (3, 480, 640) for image data
+                realtime_img = robot.get_current_img()
+
+                img = img.transpose(1, 2, 0)
+                view_img(img, realtime_img)
+                actions.append(action)
+                robot.set_target_state(action)
+                time.sleep(0.05)
+
+            # plot the actions
+            plt.plot(actions)
+            plt.show()
+
+            print("Done all actions")
+            robot.go_home()
+            print("Done home")
