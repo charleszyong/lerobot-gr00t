@@ -59,27 +59,27 @@ from pynput import keyboard
 # Use VLM as high-level task planner to get the prompt for gr00t VLA
 # if gemini is used, please set the GEMINI_API_KEY in the environment variables
 USE_VLM = True
-VLM_NAME = "gemini"  # openai, gemini
+VLM_NAME = "openai"  # openai, gemini
 ACTIONS_TO_EXECUTE = 10
 ACTION_HORIZON = 16
 MODALITY_KEYS = ["single_arm", "gripper"]
 HOST = "localhost"  # The VLA server IP address
 PORT = 5555  # The VLA server port
-CAM_IDX = 1  # The camera index
+CAM_IDX = 8  # The camera index
 
 #################################################################################
 
 
 class TaskToString(Enum):
-    CENTER_LEFT = "Place the circle to the center left box"
-    CENTER_RIGHT = "Place the circle to the center right box"
+    CENTER_LEFT = "Place the circle to the center right box"
+    CENTER_RIGHT = "Place the circle to the center left box"
     CENTER = "Place the circle to the center box"
-    CENTER_TOP = "Place the circle to the center top box"
-    CENTER_BOTTOM = "Place the circle to the center bottom box"
-    BOTTOM_LEFT = "Place the circle to the bottom left corner box"
-    BOTTOM_RIGHT = "Place the circle to the bottom right corner box"
-    TOP_LEFT = "Place the circle to the top left corner box"
-    TOP_RIGHT = "Place the circle to the top right corner box"
+    CENTER_TOP = "Place the circle to the center bottom box"
+    CENTER_BOTTOM = "Place the circle to the center top box"
+    BOTTOM_LEFT = "Place the circle to the top right corner box"
+    BOTTOM_RIGHT = "Place the circle to the top left corner box"
+    TOP_LEFT = "Place the circle to the bottom right corner box"
+    TOP_RIGHT = "Place the circle to the bottom left corner box"
 
     def __str__(self):
         return self.value
@@ -99,6 +99,7 @@ class TicTacToeVLMClient:
 
     def __init__(self, vlm_name: str = "gemini"):
         self.prompt = self._get_prompt()
+        print(self.prompt)
 
         if vlm_name == "gemini":
             from google import genai
@@ -113,9 +114,9 @@ class TicTacToeVLMClient:
         elif vlm_name == "openai":
             # NOTE: Please write your own openai client as this custom application
             # uses openai under Microsoft Azure. User's TODO
-            from openai_client import OpenAIClient
+            from openai import OpenAI
 
-            self.client = OpenAIClient()
+            self.client = OpenAI()
         else:
             raise ValueError(f"Invalid VLM name: {vlm_name}")
         self._vlm_name = vlm_name
@@ -163,8 +164,10 @@ class TicTacToeVLMClient:
         prompt += "Based on the current board state, what is your best next move to win or block your opponent? "
         prompt += f"Please choose one of the following positions: {', '.join(member_names)}. "
         prompt += "Only choose an empty position that is not currently occupied by 'X' or 'O'. "
+        prompt += "please analysis what positions does each side occupy and then analysis what's the best position to go for winning, and then flight the command both horizontally and vertically"
+        prompt += "if the opponent is about to win, please be sure to select a move that would stop them from winning. "
         prompt += (
-            "Only respond with the position name (e.g., 'CENTER', 'TOP RIGHT', 'BOTTOM LEFT')."
+            "for response, only respond with position name (e.g., 'CENTER', 'TOP RIGHT', 'BOTTOM LEFT')."
         )
         return prompt
 
@@ -221,27 +224,44 @@ class TicTacToeVLMClient:
         # Encode the JPEG bytes to base64
         encoded_image = base64.b64encode(encoded_img.tobytes()).decode("utf-8")
 
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": self.prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{encoded_image}"},
-                    },
-                ],
-            }
-        ]
+        # messages = [
+        #     {
+        #         "role": "user",
+        #         "content": [
+        #             {"type": "text", "text": self.prompt},
+        #             {
+        #                 "type": "image_url",
+        #                 "image_url": {"url": f"data:image/jpeg;base64,{encoded_image}"},
+        #             },
+        #         ],
+        #     }
+        # ]
+        #
+        # response = self.client.responses.create(
+        #     messages,
+        #     max_tokens=4096*4,
+        #     temperature=0,
+        #     max_api_call_attempts=2,
+        #     model="gpt-4.1",
+        # )
 
-        response = self.client(
-            messages,
-            max_tokens=4096,
-            temperature=0,
-            max_api_call_attempts=2,
-            model="gpt-4o",
+        response = self.client.responses.create(
+            model="o4-mini",
+            input=[
+                {"role": "user", "content": self.prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_image",
+                            "image_url": f"data:image/jpeg;base64,{encoded_image}"
+                        }
+                    ]
+                }
+            ]
         )
-        return response.choices[0].message.content
+
+        return response.output_text
 
     def _filter_response(self, response: str) -> str:
         # replace space with underscore
@@ -384,12 +404,10 @@ if __name__ == "__main__":
                             print_green(
                                 f" 🤖 Robot selected new random move: \n -> '{current_task}'"
                             )
+
                         print_green(" 🦾 GR00T VLA is executing the move")
                         client_instance.set_lang_instruction(current_task.__str__())
 
-                        # TODO(YL) remove this. this makes it easier to be in picking state
-                        target_state = torch.tensor([130, 100, 90, 100, -80, 20])
-                        robot_instance.set_target_state(target_state)
                         time.sleep(1)
             except queue.Empty:
                 pass
