@@ -32,6 +32,40 @@ python lerobot/scripts/control_robot.py \
   --control.display_data=true
 ```
 
+Multi-command Dataset
+
+```shell
+HF_USER=$(huggingface-cli whoami | head -n1) && echo "$HF_USER"
+DATASET_ID=${HF_USER}/so100_tic_tac_toe_updated && echo "$DATASET_ID"
+
+INSTRUCTIONS=(
+  "Place the circle to the center left box"
+  "Place the circle to the center right box"
+  "Place the circle to the center box"
+  "Place the circle to the center top box"
+  "Place the circle to the center bottom box"
+  "Place the circle to the bottom left corner box"
+  "Place the circle to the bottom right corner box"
+  "Place the circle to the top left corner box"
+  "Place the circle to the top right corner box"
+)
+  
+python lerobot/scripts/control_robot.py \
+  --robot.type=so100 \
+  --control.type=record \
+  --control.fps=30 \
+  --control.single_task="${INSTRUCTIONS[1]}" \
+  --control.repo_id="${DATASET_ID}" \
+  --control.tags='["so100","yc_demo","multi_task"]' \
+  --control.warmup_time_s=5 \
+  --control.episode_time_s=10 \
+  --control.reset_time_s=8 \
+  --control.num_episodes=1 \
+  --control.push_to_hub=true \
+  --control.display_data=true \
+  --control.resume=true  # **key line – keeps adding to the same dataset**
+```
+
 ## LeRobot Framework
 
 ### Train a policy
@@ -69,20 +103,23 @@ python lerobot/scripts/control_robot.py \
 ### Download Dataset
 
 ```shell
-huggingface-cli download --repo-type dataset charleyong/so100_cubes_put_box \
---local-dir ./demo_data/so100_cubes_put_box
+huggingface-cli download --repo-type dataset "${DATASET_ID}" \
+--local-dir ./demo_data/so100_tic_tac_toe_updated
 ```
 
 ### Finetune
 
 ```shell 
 python scripts/gr00t_finetune.py \
-   --dataset-path ./demo_data/so100_ycube_put_box/ \
+   --dataset-path ./demo_data/so100_tic_tac_toe_updated/ \
    --num-gpus 1 \
-   --output-dir ./policy/so100-checkpoints  \
-   --max-steps 10000 \
+   --output-dir ./policy/so100_tic_tac_toe-checkpoints  \
+   --max-steps 15000 \
    --data-config so100 \
-   --video-backend torchvision_av
+   --video-backend torchvision_av \
+   --save-steps 1000 \
+   --batch-size 32 
+   
 ```
 
 ### Open-loop Evaluation 
@@ -100,11 +137,17 @@ python scripts/eval_policy.py --plot \
 
 ### Run a policy
 
+Download Policy
+
+```shell
+rsync -avhP lambda:/home/ubuntu/lerobot-gr00t/Isaac-GR00T/policy/so100_tic_tac_toe-checkpoints/  /home/charles/Projects/lerobot/Isaac-GR00T/policy/
+```
+
 Start the policy server:
 
 ```shell
 python scripts/inference_service.py --server \
-    --model_path /home/charles/Projects/lerobot/Isaac-GR00T/policy/so100-checkpoints/checkpoint-10000 \
+    --model_path /home/charles/Projects/lerobot/Isaac-GR00T/policy/so100_tic_tac_toe-checkpoints/checkpoint-5000 \
     --embodiment_tag new_embodiment \
     --data_config so100 \
     --denoising_steps 4
@@ -115,5 +158,7 @@ Start the client node:
 ```shell
 python getting_started/examples/eval_gr00t_so100.py \
  --use_policy --host 0.0.0.0 \
- --port 5555 
+ --port 5555 \
+ --lang_instruction="Place the circle to the center right box" \
+ --cam_idx 8
 ```
