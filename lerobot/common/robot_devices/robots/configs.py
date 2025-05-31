@@ -545,12 +545,12 @@ class So100RobotConfig(ManipulatorRobotConfig):
             #     width=640,
             #     height=480,
             # ),
-            "stationary": OpenCVCameraConfig(
-                camera_index=0,
-                fps=30,
-                width=640,
-                height=480,
-            ),
+            # "stationary": OpenCVCameraConfig(
+            #     camera_index=0,
+            #     fps=30,
+            #     width=640,
+            #     height=480,
+            # ),
             # "left_stationary": OpenCVCameraConfig(
             #     camera_index=8,
             #     fps=30,

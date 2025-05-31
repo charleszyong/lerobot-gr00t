@@ -32,7 +32,7 @@ ACTIONS = ['pickup', 'putdown']
 RECORDING_HZ = 30
 
 class ChessTrajectoryRecorder:
-    def __init__(self, robot: Robot):
+    def __init__(self, robot: ManipulatorRobot):
         self.robot = robot
         self.recording = False
         self.current_trajectory = []
@@ -141,14 +141,8 @@ class ChessTrajectoryRecorder:
         """Run teleoperation in a separate thread"""
         try:
             while self.teleoperation_active and not self.quit_requested:
-                # Capture observation
-                observation = self.robot.capture_observation()
-                
-                # Get leader arm position
-                leader_state = observation["observation.state"][:self.robot.num_joints]
-                
-                # Send to follower arm
-                self.robot.send_action(leader_state)
+                # Use the robot's built-in teleoperation
+                self.robot.teleop_step()
                 
                 # Sleep to maintain control frequency
                 time.sleep(1.0 / RECORDING_HZ)
@@ -203,8 +197,8 @@ class ChessTrajectoryRecorder:
         while not self.space_pressed and not self.quit_requested:
             # Capture robot state (follower arm position)
             observation = self.robot.capture_observation()
-            # Get follower state (second half of the state vector)
-            follower_state = observation["observation.state"][self.robot.num_joints:]
+            # The observation.state contains only follower arm positions
+            follower_state = observation["observation.state"]
             
             self.current_trajectory.append(follower_state.numpy())
             self.current_timestamps.append(time.time() - start_time)
