@@ -630,8 +630,30 @@ class ManipulatorRobot:
                             pass  # Serial port might already be in a bad state
                     
                     self.follower_arms[name].write("Torque_Enable", TorqueMode.DISABLED.value)
+                    print(f"Successfully disabled torque on follower arm '{name}'")
                 except Exception as e:
-                    print(f"Warning: Failed to disable torque on follower arm '{name}': {e}")
+                    error_msg = str(e)
+                    print(f"Warning: Failed to disable torque on follower arm '{name}': {error_msg}")
+                    
+                    # If port is in use, try to reconnect and disable torque
+                    if "Port is in use" in error_msg:
+                        try:
+                            print(f"Attempting to reconnect and disable torque for '{name}'...")
+                            # Close the port
+                            if hasattr(self.follower_arms[name], 'port_handler') and self.follower_arms[name].port_handler:
+                                self.follower_arms[name].port_handler.closePort()
+                            time.sleep(0.5)  # Wait for port to fully close
+                            
+                            # Reconnect
+                            self.follower_arms[name].reconnect()
+                            time.sleep(0.1)
+                            
+                            # Try to disable torque again
+                            self.follower_arms[name].write("Torque_Enable", TorqueMode.DISABLED.value)
+                            print(f"Successfully disabled torque on follower arm '{name}' after reconnection")
+                        except Exception as e2:
+                            print(f"Failed to disable torque even after reconnection: {e2}")
+                            print(f"SAFETY WARNING: Torque may still be enabled on '{name}'! Please power off the robot manually.")
             
             # Only process leader arms if they exist
             if self.leader_arms:

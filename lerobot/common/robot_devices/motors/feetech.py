@@ -889,13 +889,30 @@ class FeetechMotorsBus:
         try:
             # First, try to write torque disable to all motors at once
             self.write("Torque_Enable", TorqueMode.DISABLED.value)
+            print(f"Successfully disabled torque on all motors for port {self.port}")
         except Exception as e:
+            print(f"Failed to disable torque via group write: {e}")
             # If that fails, try individual motors
+            success_count = 0
             for motor_name in self.motor_names:
                 try:
-                    self.write("Torque_Enable", TorqueMode.DISABLED.value, motor_name)
+                    # Get motor index directly to avoid group operations
+                    motor_idx, _ = self.motors[motor_name]
+                    # Try writing directly with motor ID
+                    self.write_with_motor_ids(
+                        [self.motor_models[0]], 
+                        [motor_idx], 
+                        "Torque_Enable", 
+                        [TorqueMode.DISABLED.value]
+                    )
+                    success_count += 1
                 except Exception:
                     pass  # Best effort - port might be in bad state
+            
+            if success_count > 0:
+                print(f"Disabled torque on {success_count}/{len(self.motor_names)} motors individually")
+            else:
+                print("WARNING: Could not disable torque on any motors!")
 
         if self.port_handler is not None:
             self.port_handler.closePort()
