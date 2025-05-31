@@ -46,6 +46,7 @@ class ChessTrajectoryRecorder:
         self.teleoperation_thread = None
         self.teleoperation_active = False
         self.latest_observation = None
+        self.latest_action = None
         self.observation_lock = threading.Lock()
         
         # Load progress if exists
@@ -148,9 +149,10 @@ class ChessTrajectoryRecorder:
                     # When recording, use teleop_step with record_data=True
                     obs_dict, action_dict = self.robot.teleop_step(record_data=True)
                     
-                    # Store the latest observation for the recording thread
+                    # Store both observation and action for the recording thread
                     with self.observation_lock:
                         self.latest_observation = obs_dict
+                        self.latest_action = action_dict
                 else:
                     # When not recording, just run teleoperation
                     self.robot.teleop_step(record_data=False)
@@ -181,6 +183,7 @@ class ChessTrajectoryRecorder:
         self.space_pressed = False
         self.skip_requested = False
         self.latest_observation = None
+        self.latest_action = None
         
         # Start teleoperation
         self.start_teleoperation()
@@ -207,12 +210,18 @@ class ChessTrajectoryRecorder:
         
         # Record at specified frequency
         while not self.space_pressed and not self.quit_requested:
-            # Get the latest observation from teleoperation thread
+            # Get the latest observation and action from teleoperation thread
             with self.observation_lock:
-                if self.latest_observation is not None:
-                    # The observation.state contains only follower arm positions
-                    follower_state = self.latest_observation["observation.state"]
-                    self.current_trajectory.append(follower_state.numpy())
+                if self.latest_observation is not None and self.latest_action is not None:
+                    # Get follower positions (joints 0-4) and leader gripper position (joint 5)
+                    follower_state = self.latest_observation["observation.state"].numpy()
+                    leader_action = self.latest_action["action"].numpy()
+                    
+                    # Create mixed state: follower positions for joints 0-4, leader position for gripper (joint 5)
+                    mixed_state = follower_state.copy()
+                    mixed_state[5] = leader_action[5]  # Replace gripper with leader's gripper position
+                    
+                    self.current_trajectory.append(mixed_state)
                     self.current_timestamps.append(time.time() - start_time)
             
             # Display recording status
