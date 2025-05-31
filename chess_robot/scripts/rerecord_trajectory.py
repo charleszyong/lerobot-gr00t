@@ -44,6 +44,7 @@ class TrajectoryRerecorder:
         self.latest_observation = None
         self.latest_action = None
         self.observation_lock = threading.Lock()
+        self.keyboard_listener_active = False
     
     def reset_flags(self):
         """Reset all control flags"""
@@ -66,13 +67,24 @@ class TrajectoryRerecorder:
     
     def start_keyboard_listener(self):
         """Start listening for keyboard events"""
-        self.keyboard_listener = keyboard.Listener(on_press=self.on_press)
-        self.keyboard_listener.start()
+        if not self.keyboard_listener_active:
+            try:
+                self.keyboard_listener = keyboard.Listener(on_press=self.on_press)
+                self.keyboard_listener.start()
+                self.keyboard_listener_active = True
+            except Exception as e:
+                print(colored(f"Warning: Could not start keyboard listener: {e}", "yellow"))
+                self.keyboard_listener_active = False
     
     def stop_keyboard_listener(self):
         """Stop keyboard listener"""
-        if self.keyboard_listener:
-            self.keyboard_listener.stop()
+        if self.keyboard_listener_active and self.keyboard_listener:
+            try:
+                self.keyboard_listener.stop()
+                self.keyboard_listener_active = False
+            except Exception as e:
+                # Ignore errors when stopping, the listener might already be stopped
+                self.keyboard_listener_active = False
     
     def display_status(self, square: str, action: str, status: str):
         """Display re-recording status"""
@@ -310,7 +322,7 @@ class TrajectoryRerecorder:
     
     def run(self):
         """Main re-recording workflow"""
-        self.start_keyboard_listener()
+        # Don't start keyboard listener here, we'll manage it per recording
         
         # Initial message about teleoperation
         print(colored("\n🎮 TELEOPERATION MODE 🎮", "cyan", attrs=['bold']))
@@ -336,17 +348,15 @@ class TrajectoryRerecorder:
                     else:
                         print(colored(f"Warning: No existing trajectory found for {square} {action}", "yellow"))
                     
-                    # Temporarily stop keyboard listener for user input
-                    self.stop_keyboard_listener()
+                    # Don't use keyboard listener during input prompts
                     
                     # Confirm re-recording
                     print()
                     confirm = input(colored("Re-record this trajectory? [y/N]: ", "yellow"))
                     if confirm.lower() != 'y':
-                        self.start_keyboard_listener()
                         continue
                     
-                    # Restart keyboard listener
+                    # Start keyboard listener for recording
                     self.start_keyboard_listener()
                     
                     # Record new trajectory
@@ -354,16 +364,14 @@ class TrajectoryRerecorder:
                     time.sleep(1)
                     
                     success = self.rerecord_trajectory(square, action)
+                    
+                    # Stop keyboard listener after recording
+                    self.stop_keyboard_listener()
+                    
                     if success:
-                        # Temporarily stop keyboard listener for user input
-                        self.stop_keyboard_listener()
-                        
                         # Ask if user wants to continue
                         print()
                         another = input(colored("Re-record another trajectory? [y/N]: ", "green"))
-                        
-                        # Restart keyboard listener
-                        self.start_keyboard_listener()
                         
                         if another.lower() != 'y':
                             print(colored("Exiting re-recording mode.", "cyan"))
@@ -386,10 +394,7 @@ class TrajectoryRerecorder:
                     traceback.print_exc()
                     print()
                     
-                    # Stop keyboard listener for input
-                    self.stop_keyboard_listener()
                     retry = input(colored("Continue despite error? [y/N]: ", "yellow"))
-                    self.start_keyboard_listener()
                     
                     if retry.lower() != 'y':
                         break

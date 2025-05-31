@@ -48,6 +48,7 @@ class ChessTrajectoryRecorder:
         self.latest_observation = None
         self.latest_action = None
         self.observation_lock = threading.Lock()
+        self.keyboard_listener_active = False
         
         # Load progress if exists
         self.progress = self.load_progress()
@@ -101,13 +102,24 @@ class ChessTrajectoryRecorder:
     
     def start_keyboard_listener(self):
         """Start listening for keyboard events"""
-        self.keyboard_listener = keyboard.Listener(on_press=self.on_press)
-        self.keyboard_listener.start()
+        if not self.keyboard_listener_active:
+            try:
+                self.keyboard_listener = keyboard.Listener(on_press=self.on_press)
+                self.keyboard_listener.start()
+                self.keyboard_listener_active = True
+            except Exception as e:
+                print(colored(f"Warning: Could not start keyboard listener: {e}", "yellow"))
+                self.keyboard_listener_active = False
     
     def stop_keyboard_listener(self):
         """Stop keyboard listener"""
-        if self.keyboard_listener:
-            self.keyboard_listener.stop()
+        if self.keyboard_listener_active and self.keyboard_listener:
+            try:
+                self.keyboard_listener.stop()
+                self.keyboard_listener_active = False
+            except Exception as e:
+                # Ignore errors when stopping, the listener might already be stopped
+                self.keyboard_listener_active = False
     
     def display_status(self, square: str, action: str, status: str, completed: int, total: int):
         """Display recording status"""
