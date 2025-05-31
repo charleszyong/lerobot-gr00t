@@ -45,6 +45,14 @@ class TrajectoryRerecorder:
         self.latest_action = None
         self.observation_lock = threading.Lock()
     
+    def reset_flags(self):
+        """Reset all control flags"""
+        self.space_pressed = False
+        self.abort_requested = False
+        self.recording = False
+        self.latest_observation = None
+        self.latest_action = None
+    
     def on_press(self, key):
         """Handle keyboard press events"""
         try:
@@ -312,42 +320,84 @@ class TrajectoryRerecorder:
         
         try:
             while True:
-                # Select trajectory
-                square, action = self.select_trajectory()
-                if square is None:
-                    break
-                
-                # Load and display existing trajectory
-                existing_data = self.load_trajectory(square, action)
-                if existing_data:
-                    self.display_trajectory_info(square, action, existing_data)
-                else:
-                    print(colored(f"Warning: No existing trajectory found for {square} {action}", "yellow"))
-                
-                # Confirm re-recording
-                print()
-                confirm = input(colored("Re-record this trajectory? [y/N]: ", "yellow"))
-                if confirm.lower() != 'y':
-                    continue
-                
-                # Record new trajectory
-                print(colored("\nPreparing to record...", "green"))
-                time.sleep(1)
-                
-                success = self.rerecord_trajectory(square, action)
-                if success:
-                    # Ask if user wants to continue
-                    print()
-                    another = input(colored("Re-record another trajectory? [y/N]: ", "green"))
-                    if another.lower() != 'y':
+                try:
+                    # Reset all flags for new recording
+                    self.reset_flags()
+                    
+                    # Select trajectory
+                    square, action = self.select_trajectory()
+                    if square is None:
                         break
-                else:
-                    print(colored("Recording cancelled.", "yellow"))
+                    
+                    # Load and display existing trajectory
+                    existing_data = self.load_trajectory(square, action)
+                    if existing_data:
+                        self.display_trajectory_info(square, action, existing_data)
+                    else:
+                        print(colored(f"Warning: No existing trajectory found for {square} {action}", "yellow"))
+                    
+                    # Temporarily stop keyboard listener for user input
+                    self.stop_keyboard_listener()
+                    
+                    # Confirm re-recording
+                    print()
+                    confirm = input(colored("Re-record this trajectory? [y/N]: ", "yellow"))
+                    if confirm.lower() != 'y':
+                        self.start_keyboard_listener()
+                        continue
+                    
+                    # Restart keyboard listener
+                    self.start_keyboard_listener()
+                    
+                    # Record new trajectory
+                    print(colored("\nPreparing to record...", "green"))
+                    time.sleep(1)
+                    
+                    success = self.rerecord_trajectory(square, action)
+                    if success:
+                        # Temporarily stop keyboard listener for user input
+                        self.stop_keyboard_listener()
+                        
+                        # Ask if user wants to continue
+                        print()
+                        another = input(colored("Re-record another trajectory? [y/N]: ", "green"))
+                        
+                        # Restart keyboard listener
+                        self.start_keyboard_listener()
+                        
+                        if another.lower() != 'y':
+                            print(colored("Exiting re-recording mode.", "cyan"))
+                            break
+                        else:
+                            print(colored("\nContinuing to next trajectory...\n", "cyan"))
+                            # Small delay before continuing
+                            time.sleep(0.5)
+                            continue
+                    else:
+                        print(colored("Recording cancelled.", "yellow"))
+                        break
+                        
+                except KeyboardInterrupt:
+                    print(colored("\nInterrupted by user.", "yellow"))
                     break
+                except Exception as e:
+                    print(colored(f"\nError in main loop: {e}", "red"))
+                    import traceback
+                    traceback.print_exc()
+                    print()
+                    
+                    # Stop keyboard listener for input
+                    self.stop_keyboard_listener()
+                    retry = input(colored("Continue despite error? [y/N]: ", "yellow"))
+                    self.start_keyboard_listener()
+                    
+                    if retry.lower() != 'y':
+                        break
                     
         finally:
             self.stop_teleoperation()
             self.stop_keyboard_listener()
+            print(colored("\nCleaning up...", "cyan"))
 
 
 def main():
@@ -369,6 +419,10 @@ def main():
         rerecorder = TrajectoryRerecorder(robot)
         rerecorder.run()
         
+    except Exception as e:
+        print(colored(f"\nFatal error: {e}", "red"))
+        import traceback
+        traceback.print_exc()
     finally:
         if robot.is_connected:
             robot.disconnect()
