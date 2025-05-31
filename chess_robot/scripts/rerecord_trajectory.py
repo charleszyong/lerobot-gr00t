@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Re-record a specific chess trajectory.
+Re-record a specific chess trajectory using teleoperation.
+The user moves the leader arm while the follower arm mimics and gets recorded.
 Useful for fixing mistakes in individual recordings.
 """
 
@@ -10,6 +11,7 @@ import time
 import json
 import numpy as np
 import shutil
+import threading
 from pathlib import Path
 from datetime import datetime
 from pynput import keyboard
@@ -36,6 +38,8 @@ class TrajectoryReRecorder:
         self.quit_requested = False
         self.trajectories_dir = Path("chess_robot/trajectories")
         self.progress_file = Path("chess_robot/trajectories/progress.json")
+        self.teleoperation_thread = None
+        self.teleoperation_active = False
     
     def on_press(self, key):
         """Handle keyboard press events"""
@@ -57,6 +61,38 @@ class TrajectoryReRecorder:
         """Stop keyboard listener"""
         if self.keyboard_listener:
             self.keyboard_listener.stop()
+    
+    def teleoperation_loop(self):
+        """Run teleoperation in a separate thread"""
+        try:
+            while self.teleoperation_active and not self.quit_requested:
+                # Capture observation
+                observation = self.robot.capture_observation()
+                
+                # Get leader arm position
+                leader_state = observation["observation.state"][:self.robot.num_joints]
+                
+                # Send to follower arm
+                self.robot.send_action(leader_state)
+                
+                # Sleep to maintain control frequency
+                time.sleep(1.0 / RECORDING_HZ)
+        except Exception as e:
+            print(colored(f"Teleoperation error: {e}", "red"))
+    
+    def start_teleoperation(self):
+        """Start teleoperation mode"""
+        if not self.teleoperation_active:
+            self.teleoperation_active = True
+            self.teleoperation_thread = threading.Thread(target=self.teleoperation_loop)
+            self.teleoperation_thread.start()
+    
+    def stop_teleoperation(self):
+        """Stop teleoperation mode"""
+        if self.teleoperation_active:
+            self.teleoperation_active = False
+            if self.teleoperation_thread:
+                self.teleoperation_thread.join()
     
     def list_available_trajectories(self):
         """List all recorded trajectories"""
@@ -136,16 +172,24 @@ class TrajectoryReRecorder:
         print(f"Number of frames: {data.get('num_frames', len(data['positions']))}")
         print(f"Duration: {data['timestamps'][-1]:.2f} seconds")
         print(f"Frequency: {data.get('frequency', RECORDING_HZ)} Hz")
+        print(f"Recording method: {data.get('recorded_with', 'manual')}")
     
     def display_recording_status(self, square: str, action: str, status: str, recording: bool = False):
         """Display recording status"""
         os.system('clear')
         
         print(colored("╔════════════════════════════════════════╗", "cyan"))
-        print(colored("║     Re-Record Chess Trajectory         ║", "cyan"))
+        print(colored("║  Re-Record Chess Trajectory (Teleop)  ║", "cyan"))
         print(colored("║                                        ║", "cyan"))
         print(colored(f"║  Square: {square:<29} ║", "cyan"))
         print(colored(f"║  Action: {action.upper():<29} ║", "cyan"))
+        print(colored("║                                        ║", "cyan"))
+        
+        if self.teleoperation_active:
+            print(colored("║  🎮 TELEOPERATION ACTIVE 🎮            ║", "green", attrs=['bold']))
+        else:
+            print(colored("║  Teleoperation: OFF                    ║", "white"))
+        
         print(colored("║                                        ║", "cyan"))
         
         color = "green" if recording else "yellow"
@@ -157,18 +201,22 @@ class TrajectoryReRecorder:
         print(colored("╚════════════════════════════════════════╝", "cyan"))
     
     def record_trajectory(self, square: str, action: str) -> bool:
-        """Record a new trajectory"""
+        """Record a new trajectory using teleoperation"""
         self.current_trajectory = []
         self.current_timestamps = []
         self.space_pressed = False
         
-        # Wait for user to position robot
+        # Start teleoperation
+        self.start_teleoperation()
+        
+        # Wait for user to position robot using leader arm
         while not self.space_pressed and not self.quit_requested:
-            status = f"Position robot and press SPACE"
+            status = f"Move leader arm and press SPACE"
             self.display_recording_status(square, action, status)
             time.sleep(0.1)
         
         if self.quit_requested:
+            self.stop_teleoperation()
             return False
         
         # Start recording
@@ -179,11 +227,12 @@ class TrajectoryReRecorder:
         
         # Record at specified frequency
         while not self.space_pressed and not self.quit_requested:
-            # Capture robot state
+            # Capture robot state (follower arm position)
             observation = self.robot.capture_observation()
-            state = observation["observation.state"]
+            # Get follower state (second half of the state vector)
+            follower_state = observation["observation.state"][self.robot.num_joints:]
             
-            self.current_trajectory.append(state.numpy())
+            self.current_trajectory.append(follower_state.numpy())
             self.current_timestamps.append(time.time() - start_time)
             
             # Display recording status
@@ -195,6 +244,7 @@ class TrajectoryReRecorder:
             time.sleep(1.0 / RECORDING_HZ)
         
         self.recording = False
+        self.stop_teleoperation()
         
         if self.quit_requested:
             return False
@@ -234,7 +284,8 @@ class TrajectoryReRecorder:
             action=action,
             robot_type='so100',
             date=datetime.now().isoformat(),
-            num_frames=len(positions)
+            num_frames=len(positions),
+            recorded_with='teleoperation'
         )
         
         print(colored(f"Trajectory saved to {filepath}", "green"))
@@ -242,6 +293,12 @@ class TrajectoryReRecorder:
     def run(self):
         """Main re-recording workflow"""
         self.start_keyboard_listener()
+        
+        # Initial message about teleoperation
+        print(colored("\n🎮 TELEOPERATION MODE 🎮", "cyan", attrs=['bold']))
+        print("You will control the robot using the leader arm (left side).")
+        print("The follower arm (right side) will mimic your movements and be recorded.")
+        print()
         
         try:
             while True:
@@ -283,6 +340,7 @@ class TrajectoryReRecorder:
                     break
                     
         finally:
+            self.stop_teleoperation()
             self.stop_keyboard_listener()
 
 
@@ -295,6 +353,11 @@ def main():
     try:
         robot.connect()
         print("Robot connected successfully!")
+        
+        # Verify robot has leader and follower arms
+        if not hasattr(robot, 'leader_arms') or not hasattr(robot, 'follower_arms'):
+            print(colored("Error: This robot doesn't support teleoperation!", "red"))
+            return
         
         # Create re-recorder and run
         rerecorder = TrajectoryReRecorder(robot)

@@ -171,21 +171,28 @@ This section describes the chess robot trajectory recording and execution system
 
 ### Overview
 
-The chess robot system allows recording and playing back trajectories for chess piece movements. It consists of:
-- Recording 128 trajectories (64 squares × 2 actions: pickup/putdown)
+The chess robot system allows recording and playing back trajectories for chess piece movements using **teleoperation**. It consists of:
+- Recording 128 trajectories (64 squares × 2 actions: pickup/putdown) using the leader-follower arm setup
 - Re-recording specific trajectories to fix mistakes
 - Executing trajectories with adjustable speed
 - Managing trajectory data with utilities
 
-### 1. Recording All Trajectories
+### 1. Recording All Trajectories (Teleoperation)
 
-Record all 128 chess trajectories in sequence:
+Record all 128 chess trajectories using the SO100's teleoperation feature:
 
 ```shell
 python chess_robot/scripts/record_chess_trajectories.py
 ```
 
+**How it works:**
+- The SO100 robot has two arms: a leader arm (left) and a follower arm (right)
+- You manually move the **leader arm** to control the robot
+- The **follower arm** mimics your movements in real-time
+- The follower arm's positions are recorded for playback
+
 **Features:**
+- 🎮 **Teleoperation mode**: Control the robot naturally by moving the leader arm
 - Records trajectories for all 64 squares (a1-h8)
 - Records both pickup and putdown actions for each square
 - Press SPACE to start/stop recording for each trajectory
@@ -194,14 +201,16 @@ python chess_robot/scripts/record_chess_trajectories.py
 - Press ESC for emergency stop
 - **Automatically resumes from where you left off** if interrupted
 
-The script will guide you through recording each trajectory:
-1. Position the robot at the starting position
-2. Press SPACE to begin recording
-3. Move the robot to perform the action (pickup or putdown)
-4. Press SPACE to stop recording
-5. The trajectory is automatically saved
+The recording process:
+1. The robot enters teleoperation mode (follower mimics leader)
+2. Move the leader arm to the starting position
+3. Press SPACE to begin recording
+4. Move the leader arm to perform the action (pickup or putdown)
+5. The follower arm follows your movements and gets recorded
+6. Press SPACE to stop recording
+7. The trajectory is automatically saved
 
-### 2. Re-recording Specific Trajectories
+### 2. Re-recording Specific Trajectories (Teleoperation)
 
 If you make a mistake or want to improve a specific trajectory:
 
@@ -210,6 +219,7 @@ python chess_robot/scripts/rerecord_trajectory.py
 ```
 
 **Features:**
+- Uses the same teleoperation mode as initial recording
 - Interactive menu to select which trajectory to re-record
 - Shows information about the existing trajectory
 - Creates a backup of the original trajectory
@@ -221,7 +231,7 @@ You can select trajectories by:
 
 ### 3. Executing Trajectories
 
-Execute recorded trajectories with speed control:
+Execute recorded trajectories with speed control (no teleoperation needed for playback):
 
 ```shell
 # Interactive mode (menu-driven)
@@ -300,13 +310,23 @@ chess_robot/
     └── trajectory_utils.py
 ```
 
-### Tips for Recording
+### Tips for Recording with Teleoperation
 
-1. **Consistency**: Try to maintain consistent starting positions for each square
-2. **Speed**: Record at a natural, smooth pace - you can adjust playback speed later
-3. **Gripper**: Ensure the gripper is properly calibrated before recording
-4. **Lighting**: Maintain consistent lighting conditions during recording
-5. **Breaks**: Take breaks as needed - the system saves progress automatically
+1. **Leader Arm Control**: Move the leader arm (left side) smoothly and naturally
+2. **Follower Observation**: Watch the follower arm (right side) to ensure it's tracking correctly
+3. **Consistent Speed**: Try to maintain consistent movement speed during recording
+4. **Starting Position**: Ensure both arms are in a comfortable starting position before recording
+5. **Gripper Sync**: The gripper on both arms should be synchronized
+6. **Smooth Movements**: Avoid jerky movements as they will be replicated in playback
+7. **Test First**: Do a few practice runs without recording to get comfortable with teleoperation
+
+### Teleoperation Advantages
+
+- **Natural Movement**: Move the robot as you would naturally move your own arm
+- **Precise Control**: Direct physical feedback helps achieve precise positioning
+- **Quick Recording**: Faster than programming waypoints manually
+- **Intuitive**: No need to think about joint angles or coordinates
+- **Consistent Results**: The follower arm ensures consistent force and grip
 
 ### Integration with Chess Engine
 
@@ -335,6 +355,10 @@ robot.disconnect()
 ### Troubleshooting
 
 **"Trajectory too short" error**: Make sure to record for at least 0.5 seconds
+
+**Teleoperation not working**: Ensure both leader and follower arms are properly connected and calibrated
+
+**Arms out of sync**: Check that both arms start from the same position before recording
 
 **"Port is in use" error**: The servo disable script should handle this, but if issues persist, use:
 ```shell
