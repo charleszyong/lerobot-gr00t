@@ -221,6 +221,7 @@ def control_loop(
     policy: PreTrainedPolicy = None,
     fps: int | None = None,
     single_task: str | None = None,
+    print_joint_positions=False,
 ):
     # TODO(rcadene): Add option to record logs
     if not robot.is_connected:
@@ -248,6 +249,19 @@ def control_loop(
 
         if teleoperate:
             observation, action = robot.teleop_step(record_data=True)
+            if print_joint_positions:
+                leader_positions = {}
+                follower_positions = {}
+                print("\n--- Joint Positions ---")
+                for name in robot.leader_arms:
+                    pos = robot.leader_arms[name].read("Present_Position")
+                    leader_positions[name] = pos
+                    print(f"Leader {name} positions: {pos}")
+                for name in robot.follower_arms:
+                    pos = robot.follower_arms[name].read("Present_Position")
+                    follower_positions[name] = pos 
+                    print(f"Follower {name} positions: {pos}")
+                print("----------------------")
         else:
             observation = robot.capture_observation()
 
