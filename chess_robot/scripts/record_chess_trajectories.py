@@ -45,6 +45,8 @@ class ChessTrajectoryRecorder:
         self.trajectories_dir = Path("chess_robot/trajectories")
         self.teleoperation_thread = None
         self.teleoperation_active = False
+        self.latest_observation = None
+        self.observation_lock = threading.Lock()
         
         # Load progress if exists
         self.progress = self.load_progress()
@@ -138,11 +140,20 @@ class ChessTrajectoryRecorder:
         print(colored("╚════════════════════════════════════════╝", "cyan"))
     
     def teleoperation_loop(self):
-        """Run teleoperation in a separate thread"""
+        """Run teleoperation with data recording"""
         try:
             while self.teleoperation_active and not self.quit_requested:
-                # Use the robot's built-in teleoperation
-                self.robot.teleop_step()
+                # Use the robot's built-in teleoperation with data recording
+                if self.recording:
+                    # When recording, use teleop_step with record_data=True
+                    obs_dict, action_dict = self.robot.teleop_step(record_data=True)
+                    
+                    # Store the latest observation for the recording thread
+                    with self.observation_lock:
+                        self.latest_observation = obs_dict
+                else:
+                    # When not recording, just run teleoperation
+                    self.robot.teleop_step(record_data=False)
                 
                 # Sleep to maintain control frequency
                 time.sleep(1.0 / RECORDING_HZ)
@@ -169,6 +180,7 @@ class ChessTrajectoryRecorder:
         self.current_timestamps = []
         self.space_pressed = False
         self.skip_requested = False
+        self.latest_observation = None
         
         # Start teleoperation
         self.start_teleoperation()
@@ -195,13 +207,13 @@ class ChessTrajectoryRecorder:
         
         # Record at specified frequency
         while not self.space_pressed and not self.quit_requested:
-            # Capture robot state (follower arm position)
-            observation = self.robot.capture_observation()
-            # The observation.state contains only follower arm positions
-            follower_state = observation["observation.state"]
-            
-            self.current_trajectory.append(follower_state.numpy())
-            self.current_timestamps.append(time.time() - start_time)
+            # Get the latest observation from teleoperation thread
+            with self.observation_lock:
+                if self.latest_observation is not None:
+                    # The observation.state contains only follower arm positions
+                    follower_state = self.latest_observation["observation.state"]
+                    self.current_trajectory.append(follower_state.numpy())
+                    self.current_timestamps.append(time.time() - start_time)
             
             # Display recording status
             duration = time.time() - start_time
@@ -209,8 +221,8 @@ class ChessTrajectoryRecorder:
             completed = len(self.progress["completed"])
             self.display_status(square, action, status, completed, 128)
             
-            # Sleep to maintain frequency
-            time.sleep(1.0 / RECORDING_HZ)
+            # Sleep to maintain display update frequency
+            time.sleep(0.05)  # Update display at 20Hz
         
         self.recording = False
         self.stop_teleoperation()
