@@ -147,6 +147,7 @@ class TrajectoryExecutor:
         # Execute trajectory
         start_time = time.time()
         execution_period = 1.0 / execution_hz
+        progress = 0.0  # Initialize progress
         
         log_say(f"Executing {action} for {square}", play_sounds=True)
         
@@ -173,7 +174,9 @@ class TrajectoryExecutor:
             # Interpolate current position
             current_position = []
             for interp_func in interpolators:
-                current_position.append(interp_func(current_time))
+                # Convert numpy scalar to Python float
+                value = float(interp_func(current_time))
+                current_position.append(value)
             
             # Send to robot
             action_tensor = torch.tensor(current_position, dtype=torch.float32)

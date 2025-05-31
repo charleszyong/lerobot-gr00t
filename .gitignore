@@ -186,3 +186,6 @@ cython_debug/
 
 **/.claude/settings.local.json
 .idea/
+
+# Chess robot trajectories (user-specific recordings)
+chess_robot/trajectories/
