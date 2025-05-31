@@ -126,7 +126,8 @@ class SO100Robot:
         print("current_state", current_state)
         # print all keys of the observation
         print("observation keys:", self.robot.capture_observation().keys())
-        current_state = torch.tensor([-0.2637, 181.2305, 173.5840, 72.7734, -88.4180, 1])
+        # current_state = torch.tensor([-0.2637, 181.2305, 173.5840, 72.7734, -88.4180, 1])
+        current_state = torch.tensor([-4.482422, 185.18555,  180.08789,   69.697266, -83.671875,  10.825815])
         self.robot.send_action(current_state)
         time.sleep(2)
         print("-------------------------------- moving to initial pose")

@@ -185,3 +185,4 @@ dmypy.json
 cython_debug/
 
 **/.claude/settings.local.json
+.idea/
