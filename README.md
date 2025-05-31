@@ -164,3 +164,184 @@ python getting_started/examples/eval_gr00t_so100.py \
  --lang_instruction="Place the circle to the center box" \
  --cam_idx 0
 ```
+
+## Chess Robot Trajectory System
+
+This section describes the chess robot trajectory recording and execution system for the SO100 robot.
+
+### Overview
+
+The chess robot system allows recording and playing back trajectories for chess piece movements. It consists of:
+- Recording 128 trajectories (64 squares × 2 actions: pickup/putdown)
+- Re-recording specific trajectories to fix mistakes
+- Executing trajectories with adjustable speed
+- Managing trajectory data with utilities
+
+### 1. Recording All Trajectories
+
+Record all 128 chess trajectories in sequence:
+
+```shell
+python chess_robot/scripts/record_chess_trajectories.py
+```
+
+**Features:**
+- Records trajectories for all 64 squares (a1-h8)
+- Records both pickup and putdown actions for each square
+- Press SPACE to start/stop recording for each trajectory
+- Press S to skip a trajectory
+- Press Q to save progress and quit
+- Press ESC for emergency stop
+- **Automatically resumes from where you left off** if interrupted
+
+The script will guide you through recording each trajectory:
+1. Position the robot at the starting position
+2. Press SPACE to begin recording
+3. Move the robot to perform the action (pickup or putdown)
+4. Press SPACE to stop recording
+5. The trajectory is automatically saved
+
+### 2. Re-recording Specific Trajectories
+
+If you make a mistake or want to improve a specific trajectory:
+
+```shell
+python chess_robot/scripts/rerecord_trajectory.py
+```
+
+**Features:**
+- Interactive menu to select which trajectory to re-record
+- Shows information about the existing trajectory
+- Creates a backup of the original trajectory
+- Can re-record multiple trajectories in one session
+
+You can select trajectories by:
+- Index number from the displayed list
+- Square and action (e.g., "e4 pickup")
+
+### 3. Executing Trajectories
+
+Execute recorded trajectories with speed control:
+
+```shell
+# Interactive mode (menu-driven)
+python chess_robot/scripts/execute_trajectory.py
+
+# Execute a single trajectory
+python chess_robot/scripts/execute_trajectory.py --square e4 --action pickup --speed 1.5
+
+# Execute a complete chess move
+python chess_robot/scripts/execute_trajectory.py --move e2 e4 --speed 0.8
+
+# Preview trajectory without execution
+python chess_robot/scripts/execute_trajectory.py --square e4 --action pickup --preview
+```
+
+**Options:**
+- `--square`: Chess square (e.g., e4)
+- `--action`: Action type (pickup or putdown)
+- `--speed`: Speed factor (0.1-2.0, default=1.0)
+- `--move FROM TO`: Execute a complete move (pickup from FROM, putdown at TO)
+- `--preview`: Show trajectory plot without executing
+- `--hz`: Execution frequency in Hz (default=30)
+
+**During execution:**
+- Press SPACE to pause/resume
+- Press ESC to abort
+
+### 4. Managing Trajectories
+
+Utility script for trajectory management:
+
+```shell
+# Check recording progress
+python chess_robot/scripts/trajectory_utils.py progress
+
+# Verify all trajectory files
+python chess_robot/scripts/trajectory_utils.py verify
+
+# Create a backup
+python chess_robot/scripts/trajectory_utils.py backup
+python chess_robot/scripts/trajectory_utils.py backup --name my_backup_name
+
+# Restore from backup
+python chess_robot/scripts/trajectory_utils.py restore --name my_backup_name
+
+# Clear progress (keeps trajectory files)
+python chess_robot/scripts/trajectory_utils.py clear
+
+# Clear everything (DANGEROUS - deletes all files)
+python chess_robot/scripts/trajectory_utils.py clear --delete-files
+
+# Export trajectory metadata to CSV
+python chess_robot/scripts/trajectory_utils.py export
+```
+
+### File Structure
+
+```
+chess_robot/
+├── trajectories/
+│   ├── pickup/
+│   │   ├── a1.npz
+│   │   ├── a2.npz
+│   │   └── ... (64 files)
+│   ├── putdown/
+│   │   ├── a1.npz
+│   │   ├── a2.npz
+│   │   └── ... (64 files)
+│   └── progress.json
+├── backups/
+│   └── backup_YYYYMMDD_HHMMSS/
+└── scripts/
+    ├── record_chess_trajectories.py
+    ├── rerecord_trajectory.py
+    ├── execute_trajectory.py
+    └── trajectory_utils.py
+```
+
+### Tips for Recording
+
+1. **Consistency**: Try to maintain consistent starting positions for each square
+2. **Speed**: Record at a natural, smooth pace - you can adjust playback speed later
+3. **Gripper**: Ensure the gripper is properly calibrated before recording
+4. **Lighting**: Maintain consistent lighting conditions during recording
+5. **Breaks**: Take breaks as needed - the system saves progress automatically
+
+### Integration with Chess Engine
+
+To integrate with a chess engine:
+
+```python
+from chess_robot.scripts.execute_trajectory import TrajectoryExecutor
+from lerobot.common.robot_devices.robots.manipulator import ManipulatorRobot
+from lerobot.common.robot_devices.robots.configs import So100RobotConfig
+
+# Initialize robot
+config = So100RobotConfig()
+robot = ManipulatorRobot(config)
+robot.connect()
+
+# Create executor
+executor = TrajectoryExecutor(robot)
+
+# Execute a chess move
+executor.execute_move("e2", "e4", speed_factor=1.2)
+
+# Disconnect
+robot.disconnect()
+```
+
+### Troubleshooting
+
+**"Trajectory too short" error**: Make sure to record for at least 0.5 seconds
+
+**"Port is in use" error**: The servo disable script should handle this, but if issues persist, use:
+```shell
+python lerobot/scripts/disable_servos.py
+```
+
+**Missing dependencies**: Install required packages:
+```shell
+pip install pynput termcolor scipy matplotlib
+```
