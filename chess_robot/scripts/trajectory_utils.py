@@ -21,6 +21,17 @@ class TrajectoryManager:
         self.trajectories_dir = Path("chess_robot/trajectories")
         self.progress_file = self.trajectories_dir / "progress.json"
         
+    def list_available_trajectories(self):
+        """List all recorded trajectories"""
+        trajectories = []
+        for action in ['pickup', 'putdown']:
+            action_dir = self.trajectories_dir / action
+            if action_dir.exists():
+                for file in sorted(action_dir.glob("*.npz")):
+                    square = file.stem
+                    trajectories.append((square, action))
+        return trajectories
+        
     def load_progress(self):
         """Load recording progress"""
         if self.progress_file.exists():

@@ -1,0 +1,11 @@
+{
+  "name": "chess-robot-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for chess robot control",
+  "bin": {
+    "chess-robot-mcp": "./start.sh"
+  },
+  "scripts": {
+    "start": "python -m chess_robot.mcp_server.run_server"
+  }
+} 

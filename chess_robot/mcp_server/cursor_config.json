@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "chess-robot": {
+      "command": "/home/charles/miniconda3/envs/so100/bin/python",
+      "args": ["/home/charles/Projects/lerobot/chess_robot/mcp_server/run_server.py"],
+      "env": {
+        "PYTHONPATH": "/home/charles/Projects/lerobot"
+      }
+    }
+  }
+} 

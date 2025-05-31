@@ -1,0 +1,7 @@
+mcp
+numpy
+torch
+matplotlib
+scipy
+pynput
+termcolor 
