@@ -376,11 +376,11 @@ class TrajectoryRerecorder:
                         another = input(colored("Re-record another trajectory? [y/N]: ", "green"))
                         
                         # Debug: show what was actually input
-                        print(colored(f"Debug: Input received: '{another}' (length: {len(another)})", "gray"))
+                        print(colored(f"Debug: Input received: '{another}' (length: {len(another)})", "white", attrs=['dark']))
                         
                         # Strip whitespace and convert to lowercase
                         another_cleaned = another.strip().lower()
-                        print(colored(f"Debug: Cleaned input: '{another_cleaned}'", "gray"))
+                        print(colored(f"Debug: Cleaned input: '{another_cleaned}'", "white", attrs=['dark']))
                         
                         if another_cleaned == 'y' or another_cleaned == 'yes':
                             print(colored("\nContinuing to next trajectory...\n", "cyan"))
