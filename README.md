@@ -7,7 +7,7 @@ sudo chmod 666 /dev/ttyACM{0,1}
 ## Teleoperate
 
 ```shell
-python lerobot/scripts/control_robot.py \                                                    ─╯
+python lerobot/scripts/control_robot.py \
   --robot.type=so100 \
   --robot.cameras='{}' \
   --control.type=teleoperate
