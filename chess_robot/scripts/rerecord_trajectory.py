@@ -353,7 +353,9 @@ class TrajectoryRerecorder:
                     # Confirm re-recording
                     print()
                     confirm = input(colored("Re-record this trajectory? [y/N]: ", "yellow"))
-                    if confirm.lower() != 'y':
+                    confirm_cleaned = confirm.strip().lower()
+                    
+                    if confirm_cleaned != 'y' and confirm_cleaned != 'yes':
                         continue
                     
                     # Start keyboard listener for recording
@@ -373,14 +375,21 @@ class TrajectoryRerecorder:
                         print()
                         another = input(colored("Re-record another trajectory? [y/N]: ", "green"))
                         
-                        if another.lower() != 'y':
-                            print(colored("Exiting re-recording mode.", "cyan"))
-                            break
-                        else:
+                        # Debug: show what was actually input
+                        print(colored(f"Debug: Input received: '{another}' (length: {len(another)})", "gray"))
+                        
+                        # Strip whitespace and convert to lowercase
+                        another_cleaned = another.strip().lower()
+                        print(colored(f"Debug: Cleaned input: '{another_cleaned}'", "gray"))
+                        
+                        if another_cleaned == 'y' or another_cleaned == 'yes':
                             print(colored("\nContinuing to next trajectory...\n", "cyan"))
                             # Small delay before continuing
                             time.sleep(0.5)
                             continue
+                        else:
+                            print(colored("Exiting re-recording mode.", "cyan"))
+                            break
                     else:
                         print(colored("Recording cancelled.", "yellow"))
                         break
@@ -395,8 +404,9 @@ class TrajectoryRerecorder:
                     print()
                     
                     retry = input(colored("Continue despite error? [y/N]: ", "yellow"))
+                    retry_cleaned = retry.strip().lower()
                     
-                    if retry.lower() != 'y':
+                    if retry_cleaned != 'y' and retry_cleaned != 'yes':
                         break
                     
         finally:
