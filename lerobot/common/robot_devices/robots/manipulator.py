@@ -611,6 +611,66 @@ class ManipulatorRobot:
                 "ManipulatorRobot is not connected. You need to run `robot.connect()` before disconnecting."
             )
 
+        # Disable torque on all motors before disconnecting to prevent overheating
+        if self.robot_type in ["so100", "so101", "moss", "lekiwi"]:
+            from lerobot.common.robot_devices.motors.feetech import TorqueMode
+            
+            # Add a small delay to let any interrupted operations settle
+            time.sleep(0.1)
+            
+            # Disable torque on follower arms
+            for name in self.follower_arms:
+                try:
+                    # Flush buffers before attempting to disable torque
+                    if hasattr(self.follower_arms[name], 'port_handler') and self.follower_arms[name].port_handler:
+                        try:
+                            self.follower_arms[name].port_handler.ser.reset_output_buffer()
+                            self.follower_arms[name].port_handler.ser.reset_input_buffer()
+                        except Exception:
+                            pass  # Serial port might already be in a bad state
+                    
+                    self.follower_arms[name].write("Torque_Enable", TorqueMode.DISABLED.value)
+                except Exception as e:
+                    print(f"Warning: Failed to disable torque on follower arm '{name}': {e}")
+            
+            # Only process leader arms if they exist
+            if self.leader_arms:
+                for name in self.leader_arms:
+                    try:
+                        # Flush buffers before attempting to disable torque
+                        if hasattr(self.leader_arms[name], 'port_handler') and self.leader_arms[name].port_handler:
+                            try:
+                                self.leader_arms[name].port_handler.ser.reset_output_buffer()
+                                self.leader_arms[name].port_handler.ser.reset_input_buffer()
+                            except Exception:
+                                pass  # Serial port might already be in a bad state
+                        
+                        self.leader_arms[name].write("Torque_Enable", TorqueMode.DISABLED.value)
+                    except Exception as e:
+                        print(f"Warning: Failed to disable torque on leader arm '{name}': {e}")
+                    
+        elif self.robot_type in ["koch", "koch_bimanual", "aloha"]:
+            from lerobot.common.robot_devices.motors.dynamixel import TorqueMode
+            
+            # Add a small delay to let any interrupted operations settle
+            time.sleep(0.1)
+            
+            # Disable torque on follower arms
+            for name in self.follower_arms:
+                try:
+                    self.follower_arms[name].write("Torque_Enable", TorqueMode.DISABLED.value)
+                except Exception as e:
+                    print(f"Warning: Failed to disable torque on follower arm '{name}': {e}")
+            
+            # Only process leader arms if they exist
+            if self.leader_arms:
+                for name in self.leader_arms:
+                    try:
+                        self.leader_arms[name].write("Torque_Enable", TorqueMode.DISABLED.value)
+                    except Exception as e:
+                        print(f"Warning: Failed to disable torque on leader arm '{name}': {e}")
+
+        # Disconnect all devices
         for name in self.follower_arms:
             self.follower_arms[name].disconnect()
 

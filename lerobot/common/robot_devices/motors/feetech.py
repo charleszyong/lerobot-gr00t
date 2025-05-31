@@ -884,6 +884,19 @@ class FeetechMotorsBus:
                 f"FeetechMotorsBus({self.port}) is not connected. Try running `motors_bus.connect()` first."
             )
 
+        # Try to disable torque on all motors before disconnecting
+        # This prevents motors from overheating if the script is interrupted
+        try:
+            # First, try to write torque disable to all motors at once
+            self.write("Torque_Enable", TorqueMode.DISABLED.value)
+        except Exception as e:
+            # If that fails, try individual motors
+            for motor_name in self.motor_names:
+                try:
+                    self.write("Torque_Enable", TorqueMode.DISABLED.value, motor_name)
+                except Exception:
+                    pass  # Best effort - port might be in bad state
+
         if self.port_handler is not None:
             self.port_handler.closePort()
             self.port_handler = None

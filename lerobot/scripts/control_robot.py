@@ -136,6 +136,8 @@ python lerobot/scripts/control_robot.py \
 
 import logging
 import os
+import signal
+import sys
 import time
 from dataclasses import asdict
 from pprint import pformat
@@ -238,6 +240,7 @@ def teleoperate(robot: Robot, cfg: TeleoperateControlConfig):
         fps=cfg.fps,
         teleoperate=True,
         display_data=cfg.display_data,
+        print_joint_positions=cfg.print_joint_positions if hasattr(cfg, 'print_joint_positions') else False,
     )
 
 
@@ -408,6 +411,48 @@ def control_robot(cfg: ControlPipelineConfig):
     logging.info(pformat(asdict(cfg)))
 
     robot = make_robot_from_config(cfg.robot)
+    
+    # Set up signal handler for clean shutdown
+    def signal_handler(signum, frame):
+        logging.info("\nReceived interrupt signal. Shutting down gracefully...")
+        
+        # Set a flag to prevent multiple signal handling
+        if hasattr(signal_handler, 'called'):
+            return
+        signal_handler.called = True
+        
+        if robot.is_connected:
+            try:
+                # First attempt: normal disconnect
+                robot.disconnect()
+                logging.info("Robot disconnected successfully.")
+            except Exception as e:
+                logging.error(f"Error during robot disconnection: {e}")
+                
+                # Fallback: try to at least close the ports
+                try:
+                    logging.info("Attempting to force close motor ports...")
+                    for name in robot.follower_arms:
+                        if hasattr(robot.follower_arms[name], 'port_handler') and robot.follower_arms[name].port_handler:
+                            robot.follower_arms[name].port_handler.closePort()
+                    
+                    # Only process leader arms if they exist
+                    if robot.leader_arms:
+                        for name in robot.leader_arms:
+                            if hasattr(robot.leader_arms[name], 'port_handler') and robot.leader_arms[name].port_handler:
+                                robot.leader_arms[name].port_handler.closePort()
+                    
+                    logging.info("Motor ports closed.")
+                except Exception as e2:
+                    logging.error(f"Failed to force close ports: {e2}")
+                
+                # Mark as disconnected to prevent further attempts
+                robot.is_connected = False
+                
+        sys.exit(0)
+    
+    # Register the signal handler for SIGINT (Ctrl+C)
+    signal.signal(signal.SIGINT, signal_handler)
 
     # TODO(Steven): Blueprint for fixed window size
 
