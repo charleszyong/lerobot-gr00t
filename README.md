@@ -121,7 +121,6 @@ python scripts/gr00t_finetune.py \
    --video-backend torchvision_av \
    --save-steps 25000 \
    --batch-size 64 
-   
 ```
 
 ### Open-loop Evaluation 
@@ -142,7 +141,7 @@ python scripts/eval_policy.py --plot \
 Download Policy
 
 ```shell
-rsync -avhP lambda:/home/ubuntu/lerobot-gr00t/Isaac-GR00T/policy/so100_tic_tac_toe_autoend-checkpoints/  /home/charles/Projects/lerobot/Isaac-GR00T/policy/so100_tic_tac_toe_autoend-checkpoints
+rsync -avhP lambda:/home/ubuntu/lerobot-gr00t/Isaac-GR00T/demo_data/LegrandFrederic/lego-pickup-dual-setup-gr00t/  /home/charles/Projects/lerobot/Isaac-GR00T/policy/lego-pickup-dual-setup-gr00t
 ```
 
 Start the policy server:
